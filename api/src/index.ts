@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
 import { prisma } from './prisma';
+import itemsRoutes from './routes/itemsRoutes';
+import ordersRoutes from './routes/ordersRoutes'; // 👈 novo
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -14,10 +16,8 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
-// Rota pra testar conexão com o banco
 app.get('/db-health', async (_req: Request, res: Response) => {
   try {
-    // faz uma query bem simples
     await prisma.$queryRaw`SELECT 1+1 AS result`;
 
     return res.json({
@@ -33,6 +33,12 @@ app.get('/db-health', async (_req: Request, res: Response) => {
     });
   }
 });
+
+// Rotas de catálogo de itens
+app.use('/items', itemsRoutes);
+
+// Rotas de pedidos
+app.use('/orders', ordersRoutes);
 
 app.listen(PORT, () => {
   console.log(`API rodando na porta ${PORT}`);

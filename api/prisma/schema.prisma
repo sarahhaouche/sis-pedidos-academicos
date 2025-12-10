@@ -52,7 +52,7 @@ model OrderItem {
 // Enum para status do pedido
 enum OrderStatus {
   PENDING
-  APPROVED
+  PRODUCING
   DELIVERED
   CANCELLED
 }
