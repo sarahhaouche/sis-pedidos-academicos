@@ -1,0 +1,15 @@
+# Dependências
+node_modules
+
+# Builds
+dist
+.next
+
+# Variáveis de ambiente
+.env
+.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*

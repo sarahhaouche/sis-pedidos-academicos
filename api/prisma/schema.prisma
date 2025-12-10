@@ -1,0 +1,58 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Itens do catálogo (uniformes, mochilas, materiais)
+model Item {
+  id            String   @id @default(uuid())
+  name          String
+  category      String   // ex: "uniforme", "mochila", "material"
+  size          String?  // ex: "P", "M", "G", "único"
+  stockQuantity Int      @default(0)
+  isActive      Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+}
+
+// Pedido de itens para um aluno
+model Order {
+  id           String      @id @default(uuid())
+  studentName  String
+  studentClass String      
+  status       OrderStatus @default(PENDING)
+  requestedBy  String      // nome ou e-mail de quem solicitou
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+}
+
+// Itens pertencentes a um pedido
+model OrderItem {
+  id       String @id @default(uuid())
+  orderId  String
+  itemId   String
+  quantity Int
+
+  order Order @relation(fields: [orderId], references: [id])
+  item  Item  @relation(fields: [itemId], references: [id])
+}
+
+// Enum para status do pedido
+enum OrderStatus {
+  PENDING
+  APPROVED
+  DELIVERED
+  CANCELLED
+}
