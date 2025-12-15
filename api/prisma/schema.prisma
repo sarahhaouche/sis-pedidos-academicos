@@ -31,6 +31,7 @@ model Order {
   studentClass String      
   status       OrderStatus @default(PENDING)
   requestedBy  String      // nome ou e-mail de quem solicitou
+  trackingCode String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -53,6 +54,23 @@ model OrderItem {
 enum OrderStatus {
   PENDING
   PRODUCING
+  SHIPPED
   DELIVERED
   CANCELLED
 }
+
+enum UserRole {
+  COORDENACAO_ADMIN
+  ESTOQUE_ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  role         UserRole
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+

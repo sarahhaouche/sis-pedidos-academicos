@@ -169,7 +169,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.patch('/:id/status', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, trackingCode } = req.body;
 
     if (!status || !(status in OrderStatus)) {
       return res.status(400).json({
@@ -183,15 +183,15 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
 
-    // Regrinhas simples de transição de status
     const current = order.status;
     const next = status as OrderStatus;
 
     const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
-      PENDING: [OrderStatus.PRODUCING, OrderStatus.CANCELLED],
-      PRODUCING: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      DELIVERED: [],
-      CANCELLED: [],
+      [OrderStatus.PENDING]:   [OrderStatus.PRODUCING, OrderStatus.CANCELLED],
+      [OrderStatus.PRODUCING]: [OrderStatus.SHIPPED,   OrderStatus.CANCELLED],
+      [OrderStatus.SHIPPED]:   [OrderStatus.DELIVERED],
+      [OrderStatus.DELIVERED]: [],
+      [OrderStatus.CANCELLED]: [],
     };
 
     if (!allowedTransitions[current].includes(next)) {
@@ -200,15 +200,23 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       });
     }
 
+    // 👇 regra: se for marcar como SHIPPED, precisa do código de rastreio
+    const dataToUpdate: any = { status: next };
+
+    if (next === OrderStatus.SHIPPED) {
+      if (!trackingCode || typeof trackingCode !== 'string' || !trackingCode.trim()) {
+        return res.status(400).json({
+          error: 'trackingCode é obrigatório ao marcar pedido como SHIPPED',
+        });
+      }
+      dataToUpdate.trackingCode = trackingCode.trim();
+    }
+
     const updated = await prisma.order.update({
       where: { id },
-      data: { status: next },
+      data: dataToUpdate,
       include: {
-        items: {
-          include: {
-            item: true,
-          },
-        },
+        items: { include: { item: true } },
       },
     });
 
@@ -218,6 +226,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Erro ao atualizar status do pedido' });
   }
 });
+
 
 /**
  * PATCH /orders/:id

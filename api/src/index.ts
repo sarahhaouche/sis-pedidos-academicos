@@ -1,7 +1,9 @@
 import express, { Request, Response } from 'express';
 import { prisma } from './prisma';
 import itemsRoutes from './routes/itemsRoutes';
-import ordersRoutes from './routes/ordersRoutes'; // 👈 novo
+import ordersRoutes from './routes/ordersRoutes';
+import authRoutes from './routes/authRoutes';
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -33,6 +35,15 @@ app.get('/db-health', async (_req: Request, res: Response) => {
     });
   }
 });
+
+app.use(cors({
+  origin: 'http://localhost:3000', // seu Next em dev
+}));
+
+app.use(express.json());
+
+//Rotas de autenticação
+app.use('/auth', authRoutes);
 
 // Rotas de catálogo de itens
 app.use('/items', itemsRoutes);
