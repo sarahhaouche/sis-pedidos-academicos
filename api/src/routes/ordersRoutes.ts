@@ -177,7 +177,17 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       });
     }
 
-    const order = await prisma.order.findUnique({ where: { id } });
+    // Busca o pedido com itens e estoque atual
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            item: true,
+          },
+        },
+      },
+    });
 
     if (!order) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
@@ -200,9 +210,9 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       });
     }
 
-    // 👇 regra: se for marcar como SHIPPED, precisa do código de rastreio
     const dataToUpdate: any = { status: next };
 
+    // Se for marcar como SHIPPED, exige trackingCode
     if (next === OrderStatus.SHIPPED) {
       if (!trackingCode || typeof trackingCode !== 'string' || !trackingCode.trim()) {
         return res.status(400).json({
@@ -212,11 +222,64 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       dataToUpdate.trackingCode = trackingCode.trim();
     }
 
+    // Caso especial: PENDING -> PRODUCING
+    if (current === OrderStatus.PENDING && next === OrderStatus.PRODUCING) {
+      // 1) Verificar se há estoque suficiente
+      const insuficientes = order.items.filter(
+        (oi) => oi.item.stockQuantity < oi.quantity,
+      );
+
+      if (insuficientes.length > 0) {
+        const nomes = insuficientes
+          .map((oi) => `${oi.item.name} (solicitado: ${oi.quantity}, estoque: ${oi.item.stockQuantity})`)
+          .join('; ');
+
+        return res.status(400).json({
+          error: `Estoque insuficiente para: ${nomes}`,
+        });
+      }
+
+      // 2) Transação: desconta estoque + atualiza pedido
+      const updated = await prisma.$transaction(async (tx) => {
+        // desconta o estoque item a item
+        for (const oi of order.items) {
+          await tx.item.update({
+            where: { id: oi.itemId },
+            data: {
+              stockQuantity: {
+                decrement: oi.quantity,
+              },
+            },
+          });
+        }
+
+        // atualiza o pedido já incluindo itens com estoque novo
+        return tx.order.update({
+          where: { id },
+          data: dataToUpdate,
+          include: {
+            items: {
+              include: {
+                item: true,
+              },
+            },
+          },
+        });
+      });
+
+      return res.json(updated);
+    }
+
+    // Demais transições (PRODUCING -> SHIPPED, SHIPPED -> DELIVERED, etc.)
     const updated = await prisma.order.update({
       where: { id },
       data: dataToUpdate,
       include: {
-        items: { include: { item: true } },
+        items: {
+          include: {
+            item: true,
+          },
+        },
       },
     });
 
@@ -226,6 +289,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Erro ao atualizar status do pedido' });
   }
 });
+
 
 
 /**

@@ -19,8 +19,10 @@ type OrderItem = {
     name: string;
     category: string;
     size: string | null;
+    stockQuantity: number;
   };
 };
+
 
 type Order = {
   id: string;
@@ -30,13 +32,30 @@ type Order = {
   status: OrderStatus;
   createdAt: string;
   items: OrderItem[];
-  trackingCode?: string | null; 
+  trackingCode?: string | null;
 };
 
+type StockItem = {
+  id: string;
+  name: string;
+  category: string;
+  size: string | null;
+  stockQuantity: number;
+};
+
+
+function hasSufficientStock(order: Order): boolean {
+  return order.items.every(
+    (oi) => oi.item.stockQuantity >= oi.quantity,
+  );
+}
 
 export default function EstoquePage() {
   const router = useRouter();
 
+  const [itemsCatalog, setItemsCatalog] = useState<StockItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [updatingStockId, setUpdatingStockId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +116,26 @@ export default function EstoquePage() {
     }
   }, [statusFilter, search, user]);
 
+  useEffect(() => {
+    async function fetchItems() {
+      try {
+        setLoadingItems(true);
+        const res = await fetch('http://localhost:4000/items?onlyActive=true');
+        const data = await res.json();
+        setItemsCatalog(data);
+      } catch (error) {
+        console.error('Erro ao carregar itens para estoque:', error);
+      } finally {
+        setLoadingItems(false);
+      }
+    }
+
+    if (user) {
+      fetchItems();
+    }
+  }, [user]);
+
+
   function formatStatus(status: OrderStatus) {
   switch (status) {
     case 'PENDING':
@@ -127,18 +166,35 @@ export default function EstoquePage() {
         },
       );
 
-      const data = await res.json();
+      const updatedOrder: Order = await res.json();
 
       if (!res.ok) {
-        console.error('Erro ao atualizar status:', data);
-        alert(data?.error ?? 'Erro ao atualizar status do pedido');
+        console.error('Erro ao atualizar status:', updatedOrder);
+        alert(
+          (updatedOrder as any)?.error ??
+            'Erro ao atualizar status do pedido',
+        );
         return;
       }
 
-      // Atualiza a lista local sem precisar recarregar tudo
+      // Atualiza a lista de pedidos com o pedido vindo da API
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: data.status } : o)),
+        prev.map((o) => (o.id === orderId ? updatedOrder : o)),
       );
+
+      // Se foi PENDING -> PRODUCING, atualiza também o estoque local
+      if (nextStatus === 'PRODUCING') {
+        setItemsCatalog((prev) =>
+          prev.map((item) => {
+            const fromOrder = updatedOrder.items.find(
+              (oi) => oi.item.id === item.id,
+            );
+            return fromOrder
+              ? { ...item, stockQuantity: fromOrder.item.stockQuantity }
+              : item;
+          }),
+        );
+      }
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       alert('Erro de conexão ao atualizar status.');
@@ -147,13 +203,58 @@ export default function EstoquePage() {
     }
   }
 
-  if (!user) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-600">Carregando...</p>
-      </main>
+  // Estoque
+
+  function handleLocalStockChange(itemId: string, value: string) {
+  const quantity = Number(value) || 0;
+
+  setItemsCatalog((prev) =>
+    prev.map((item) =>
+      item.id === itemId ? { ...item, stockQuantity: quantity } : item,
+    ),
+  );
+}
+
+async function handleSaveStock(itemId: string, quantity: number) {
+  try {
+    setUpdatingStockId(itemId);
+
+    const res = await fetch(`http://localhost:4000/items/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stockQuantity: quantity }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error('Erro ao atualizar estoque:', data);
+      alert(data?.error ?? 'Erro ao atualizar estoque do item');
+      return;
+    }
+
+    // Atualiza também os itens dentro dos pedidos para refletir o novo estoque
+    setOrders((prev) =>
+      prev.map((order) => ({
+        ...order,
+        items: order.items.map((oi) =>
+          oi.item.id === itemId
+            ? {
+                ...oi,
+                item: { ...oi.item, stockQuantity: quantity },
+              }
+            : oi,
+        ),
+      })),
     );
+  } catch (error) {
+    console.error('Erro ao atualizar estoque:', error);
+    alert('Erro de conexão ao atualizar estoque.');
+  } finally {
+    setUpdatingStockId(null);
   }
+}
+
 
   // Rastreio do pedido
 
@@ -212,7 +313,7 @@ export default function EstoquePage() {
               Painel do Estoque
             </h1>
             <p className="text-sm text-slate-600">
-              Usuário: {user.username} — gerencie os pedidos pendentes e em produção.
+              Usuário: {user?.username ?? '---'} — gerencie os pedidos pendentes e em produção.
             </p>
           </div>
 
@@ -282,6 +383,7 @@ export default function EstoquePage() {
                   <th className="px-4 py-3">Turma</th>
                   <th className="px-4 py-3">Itens</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Estoque</th>
                   <th className="px-4 py-3">Rastreio</th>
                   <th className="px-4 py-3">Data</th>
                   <th className="px-4 py-3">Ações</th>
@@ -318,12 +420,23 @@ export default function EstoquePage() {
                       </span>
                     </td>
 
+                    {/*Situação de estoque */}
+                    <td className="px-4 py-3 text-xs">
+                      {hasSufficientStock(order) ? (
+                        <span className="text-emerald-700 font-medium">
+                          Estoque suficiente
+                        </span>
+                      ) : (
+                        <span className="text-red-600 font-medium">
+                          Estoque insuficiente
+                        </span>
+                      )}
+                    </td>
+
                     {/* Rastreio */}
                     <td className="px-4 py-3 text-xs text-slate-600">
                       {order.trackingCode ? (
-                        <span className="font-mono">
-                          {order.trackingCode}
-                        </span>
+                        <span className="font-mono">{order.trackingCode}</span>
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}
@@ -394,9 +507,75 @@ export default function EstoquePage() {
                   </tr>
                 ))}
               </tbody>
+
             </table>
           )}
         </section>
+        {/* Gestão de estoque */}
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <h2 className="text-sm font-semibold text-slate-800">
+              Gestão de estoque
+            </h2>
+            <p className="text-xs text-slate-500">
+              Atualize as quantidades disponíveis de cada item.
+            </p>
+          </div>
+
+          {loadingItems ? (
+            <div className="p-4 text-xs text-slate-600">
+              Carregando itens...
+            </div>
+          ) : itemsCatalog.length === 0 ? (
+            <div className="p-4 text-xs text-slate-600">
+              Nenhum item cadastrado.
+            </div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                  <th className="px-4 py-2">Item</th>
+                  <th className="px-4 py-2">Categoria</th>
+                  <th className="px-4 py-2">Tamanho</th>
+                  <th className="px-4 py-2">Estoque atual</th>
+                  <th className="px-4 py-2">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itemsCatalog.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-100">
+                    <td className="px-4 py-2">{item.name}</td>
+                    <td className="px-4 py-2">{item.category}</td>
+                    <td className="px-4 py-2">{item.size ?? '—'}</td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={item.stockQuantity}
+                        onChange={(e) =>
+                          handleLocalStockChange(item.id, e.target.value)
+                        }
+                        className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <button
+                        disabled={updatingStockId === item.id}
+                        onClick={() =>
+                          handleSaveStock(item.id, item.stockQuantity)
+                        }
+                        className="text-xs font-medium text-slate-900 hover:underline disabled:opacity-50"
+                      >
+                        Salvar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
       </div>
     </main>
   );
