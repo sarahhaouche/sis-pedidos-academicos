@@ -38,7 +38,10 @@ app.get('/db-health', async (_req: Request, res: Response) => {
 });
 
 app.use(cors({
-  origin: 'http://localhost:3000', // seu Next em dev
+  origin: [
+    'http://localhost:3000',                         // front em dev
+    'https://sis-pedidos-academicos.vercel.app',    // front em produção
+  ],
 }));
 
 app.use(express.json());
