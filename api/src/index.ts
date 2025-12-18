@@ -9,8 +9,6 @@ import cors from 'cors';
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(express.json());
-
 app.get('/health', (_req: Request, res: Response) => {
   return res.json({
     status: 'ok',
@@ -37,12 +35,11 @@ app.get('/db-health', async (_req: Request, res: Response) => {
   }
 });
 
-app.use(cors({
-  origin: [
-    'http://localhost:3000',                         // front em dev
-    'https://sis-pedidos-academicos.vercel.app',    // front em produção
-  ],
-}));
+app.use(
+  cors({
+    origin: '*',
+  })
+);
 
 app.use(express.json());
 
