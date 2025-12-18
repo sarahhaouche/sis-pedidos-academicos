@@ -56,12 +56,12 @@ async function main() {
     data: [
       {
         username: 'admin_coordenacao',
-        passwordHash: senhaCoord,
+        password: senhaCoord,
         role: 'COORDENACAO_ADMIN',
       },
       {
         username: 'admin_estoque',
-        passwordHash: senhaEstoque,
+        password: senhaEstoque,
         role: 'ESTOQUE_ADMIN',
       },
     ],
