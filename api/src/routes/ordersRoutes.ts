@@ -169,7 +169,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.patch('/:id/status', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, trackingCode } = req.body;
+    const { status, trackingCode, performedBy } = req.body; //pega performedBy também
 
     if (!status || !(status in OrderStatus)) {
       return res.status(400).json({
@@ -177,14 +177,14 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       });
     }
 
-    // Busca o pedido com itens e estoque atual
+    const next = status as OrderStatus;
+
+    // Busca o pedido com itens + estoque
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
         items: {
-          include: {
-            item: true,
-          },
+          include: { item: true },
         },
       },
     });
@@ -194,7 +194,6 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     }
 
     const current = order.status;
-    const next = status as OrderStatus;
 
     const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
       [OrderStatus.PENDING]:   [OrderStatus.PRODUCING, OrderStatus.CANCELLED],
@@ -231,7 +230,10 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
       if (insuficientes.length > 0) {
         const nomes = insuficientes
-          .map((oi) => `${oi.item.name} (solicitado: ${oi.quantity}, estoque: ${oi.item.stockQuantity})`)
+          .map(
+            (oi) =>
+              `${oi.item.name} (solicitado: ${oi.quantity}, estoque: ${oi.item.stockQuantity})`,
+          )
           .join('; ');
 
         return res.status(400).json({
@@ -239,10 +241,10 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
         });
       }
 
-      // 2) Transação: desconta estoque + atualiza pedido
+      // 2) Transação: baixa estoque + cria movimentos + atualiza status
       const updated = await prisma.$transaction(async (tx) => {
-        // desconta o estoque item a item
         for (const oi of order.items) {
+          // baixa estoque
           await tx.item.update({
             where: { id: oi.itemId },
             data: {
@@ -251,18 +253,26 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
               },
             },
           });
+
+          // cria movimento OUT com performedBy
+          await tx.stockMovement.create({
+            data: {
+              itemId: oi.itemId,
+              orderId: order.id,
+              type: 'OUT',
+              quantity: oi.quantity,
+              reason: 'Reserva de itens para produção do pedido',
+              performedBy: performedBy ?? null, //salva quem enviou
+            },
+          });
         }
 
-        // atualiza o pedido já incluindo itens com estoque novo
+        // atualiza o pedido
         return tx.order.update({
           where: { id },
           data: dataToUpdate,
           include: {
-            items: {
-              include: {
-                item: true,
-              },
-            },
+            items: { include: { item: true } },
           },
         });
       });
@@ -275,11 +285,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       where: { id },
       data: dataToUpdate,
       include: {
-        items: {
-          include: {
-            item: true,
-          },
-        },
+        items: { include: { item: true } },
       },
     });
 
@@ -289,8 +295,6 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Erro ao atualizar status do pedido' });
   }
 });
-
-
 
 /**
  * PATCH /orders/:id

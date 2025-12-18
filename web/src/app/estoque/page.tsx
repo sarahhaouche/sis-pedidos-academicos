@@ -62,6 +62,7 @@ export default function EstoquePage() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('PENDING');
   const [search, setSearch] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [editedStock, setEditedStock] = useState<Record<string, string>>({});
 
   // 1) Garantir que só ESTOQUE_ADMIN entra
   useEffect(() => {
@@ -153,6 +154,72 @@ export default function EstoquePage() {
   }
 }
 
+function getStatusChipClasses(status: OrderStatus) {
+  const base =
+    'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold border';
+
+  switch (status) {
+    case 'PENDING':
+      return `${base} bg-amber-50 text-amber-800 border-amber-200`;
+    case 'PRODUCING':
+      return `${base} bg-blue-50 text-blue-800 border-blue-200`;
+    case 'SHIPPED':
+      return `${base} bg-sky-50 text-sky-800 border-sky-200`;
+    case 'DELIVERED':
+      return `${base} bg-emerald-50 text-emerald-800 border-emerald-200`;
+    case 'CANCELLED':
+      return `${base} bg-rose-50 text-rose-800 border-rose-200`;
+    default:
+      return `${base} bg-slate-100 text-slate-800 border-slate-200`;
+  }
+}
+
+type StatusFilter = 'ALL' | OrderStatus;
+
+function getStatusFilterClasses(status: StatusFilter, isActive: boolean) {
+  const base =
+    'rounded-full px-3 py-1 text-xs font-medium border transition-colors';
+
+  if (status === 'ALL') {
+    return isActive
+      ? `${base} bg-slate-900 text-white border-slate-900`
+      : `${base} bg-white text-slate-800 border-slate-300 hover:bg-slate-100`;
+  }
+
+  if (status === 'PENDING') {
+    return isActive
+      ? `${base} bg-amber-500 text-white border-amber-500`
+      : `${base} bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100`;
+  }
+
+  if (status === 'PRODUCING') {
+    return isActive
+      ? `${base} bg-blue-500 text-white border-blue-500`
+      : `${base} bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100`;
+  }
+
+  if (status === 'SHIPPED') {
+    return isActive
+      ? `${base} bg-sky-500 text-white border-sky-500`
+      : `${base} bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100`;
+  }
+
+  if (status === 'DELIVERED') {
+    return isActive
+      ? `${base} bg-emerald-500 text-white border-emerald-500`
+      : `${base} bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100`;
+  }
+
+  if (status === 'CANCELLED') {
+    return isActive
+      ? `${base} bg-rose-500 text-white border-rose-500`
+      : `${base} bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100`;
+  }
+
+  return `${base} bg-slate-100 text-slate-800 border-slate-200`;
+}
+
+
   async function handleUpdateStatus(orderId: string, nextStatus: OrderStatus) {
     try {
       setUpdatingId(orderId);
@@ -203,6 +270,68 @@ export default function EstoquePage() {
     }
   }
 
+  async function handleMarkProducing(order: Order) {
+  // Popup pedindo nome do responsável
+  const name = window.prompt(
+    'Informe o nome do administrador de estoque que está enviando este pedido para produção:',
+  );
+
+  if (!name || !name.trim()) {
+    // usuário cancelou ou deixou vazio → não faz nada
+    return;
+  }
+
+  try {
+    setUpdatingId(order.id);
+
+    const res = await fetch(
+      `http://localhost:4000/orders/${order.id}/status`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'PRODUCING',
+          performedBy: name.trim(), // vai pro backend
+        }),
+      },
+    );
+
+    const updatedOrder: Order = await res.json();
+
+    if (!res.ok) {
+      console.error('Erro ao atualizar status:', updatedOrder);
+      alert(
+        (updatedOrder as any)?.error ??
+          'Erro ao enviar pedido para produção.',
+      );
+      return;
+    }
+
+    // Atualiza pedidos
+    setOrders((prev) =>
+      prev.map((o) => (o.id === order.id ? updatedOrder : o)),
+    );
+
+    // Atualiza estoque local com base nos itens retornados
+    setItemsCatalog((prev) =>
+      prev.map((item) => {
+        const fromOrder = updatedOrder.items.find(
+          (oi) => oi.item.id === item.id,
+        );
+        return fromOrder
+          ? { ...item, stockQuantity: fromOrder.item.stockQuantity }
+          : item;
+      }),
+    );
+  } catch (error) {
+    console.error('Erro ao enviar para produção:', error);
+    alert('Erro de conexão ao enviar pedido para produção.');
+  } finally {
+    setUpdatingId(null);
+  }
+}
+
+
   // Estoque
 
   function handleLocalStockChange(itemId: string, value: string) {
@@ -215,46 +344,57 @@ export default function EstoquePage() {
   );
 }
 
-async function handleSaveStock(itemId: string, quantity: number) {
-  try {
-    setUpdatingStockId(itemId);
+async function handleSaveStock(itemId: string, newQuantity: number) {
+  if (Number.isNaN(newQuantity) || newQuantity < 0) {
+    alert('Informe uma quantidade válida (zero ou maior).');
+    return;
+  }
 
+  const name = window.prompt(
+    'Informe o nome do administrador de estoque que está realizando este ajuste:',
+  );
+
+  if (!name || !name.trim()) {
+    return; // cancelou ou deixou vazio
+  }
+
+  try {
     const res = await fetch(`http://localhost:4000/items/${itemId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stockQuantity: quantity }),
+      body: JSON.stringify({
+        stockQuantity: newQuantity,
+        reason: 'Ajuste manual pelo painel de estoque',
+        performedBy: name.trim(),
+      }),
     });
 
-    const data = await res.json();
+    const updatedItem = await res.json();
 
     if (!res.ok) {
-      console.error('Erro ao atualizar estoque:', data);
-      alert(data?.error ?? 'Erro ao atualizar estoque do item');
+      console.error('Erro ao ajustar estoque:', updatedItem);
+      alert(
+        (updatedItem as any)?.error ??
+          'Erro ao salvar ajuste de estoque.',
+      );
       return;
     }
 
-    // Atualiza também os itens dentro dos pedidos para refletir o novo estoque
-    setOrders((prev) =>
-      prev.map((order) => ({
-        ...order,
-        items: order.items.map((oi) =>
-          oi.item.id === itemId
-            ? {
-                ...oi,
-                item: { ...oi.item, stockQuantity: quantity },
-              }
-            : oi,
-        ),
-      })),
+    setItemsCatalog((prev) =>
+      prev.map((item) => (item.id === itemId ? updatedItem : item)),
     );
+
+    // limpa o valor editado desse item
+    setEditedStock((prev) => {
+      const copy = { ...prev };
+      delete copy[itemId];
+      return copy;
+    });
   } catch (error) {
-    console.error('Erro ao atualizar estoque:', error);
-    alert('Erro de conexão ao atualizar estoque.');
-  } finally {
-    setUpdatingStockId(null);
+    console.error('Erro ao ajustar estoque:', error);
+    alert('Erro de conexão ao salvar ajuste de estoque.');
   }
 }
-
 
   // Rastreio do pedido
 
@@ -303,6 +443,15 @@ async function handleSaveStock(itemId: string, quantity: number) {
   }
 }
 
+  const visibleOrders = orders.filter((order) => {
+    if (statusFilter === 'ALL') return true;
+    return order.status === statusFilter;
+  });
+
+  const showStockColumn = statusFilter === 'PENDING';
+
+
+
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -313,19 +462,26 @@ async function handleSaveStock(itemId: string, quantity: number) {
               Painel do Estoque
             </h1>
             <p className="text-sm text-slate-600">
-              Usuário: {user?.username ?? '---'} — gerencie os pedidos pendentes e em produção.
+              Gerencie os pedidos pendentes e em produção.
             </p>
           </div>
-
-          <button
-            onClick={() => {
-              localStorage.removeItem('sis_pedidos:user');
-              router.push('/login');
-            }}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-100"
-          >
-            Sair
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => router.push('/estoque/historico')}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Histórico do estoque
+            </button>
+            <button
+              onClick={() => {
+                localStorage.removeItem('sis_pedidos:user');
+                router.push('/login');
+              }}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-100"
+            >
+              Sair
+            </button>
+          </div>
         </header>
 
         {/* Filtros */}
@@ -340,11 +496,10 @@ async function handleSaveStock(itemId: string, quantity: number) {
                       status === 'ALL' ? 'ALL' : (status as OrderStatus),
                     )
                   }
-                  className={`rounded-full px-3 py-1 text-xs font-medium border ${
-                    statusFilter === status
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
-                  }`}
+                  className={getStatusFilterClasses(
+                    status,
+                    statusFilter === status,
+                  )}
                 >
                   {status === 'ALL'
                     ? 'Todos'
@@ -366,149 +521,157 @@ async function handleSaveStock(itemId: string, quantity: number) {
         </section>
 
         {/* Tabela de pedidos */}
-        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm">
           {loading ? (
             <div className="p-6 text-sm text-slate-600">
               Carregando pedidos...
             </div>
-          ) : orders.length === 0 ? (
+          ) : visibleOrders.length === 0 ? (
             <div className="p-6 text-sm text-slate-600">
               Nenhum pedido encontrado para esse filtro.
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                  <th className="px-4 py-3">Aluno</th>
-                  <th className="px-4 py-3">Turma</th>
-                  <th className="px-4 py-3">Itens</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Estoque</th>
-                  <th className="px-4 py-3">Rastreio</th>
-                  <th className="px-4 py-3">Data</th>
-                  <th className="px-4 py-3">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr key={order.id} className="border-b border-slate-100">
-                    {/* Aluno */}
-                    <td className="px-4 py-3 font-medium">
-                      {order.studentName}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-2">Aluno</th>
+                    <th className="px-4 py-2">Turma</th>
+                    <th className="px-4 py-2">Itens</th>
+                    <th className="px-4 py-2">Status</th>
 
-                    {/* Turma */}
-                    <td className="px-4 py-3">
-                      {order.studentClass}
-                    </td>
+                    {showStockColumn && (
+                      <th className="px-4 py-2">Estoque</th>
+                    )}
 
-                    {/* Itens */}
-                    <td className="px-4 py-3">
-                      <ul className="space-y-1">
-                        {order.items.map((oi) => (
-                          <li key={oi.id} className="text-xs text-slate-700">
-                            {oi.quantity}× {oi.item.name}
-                          </li>
-                        ))}
-                      </ul>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-4 py-3">
-                      <span className="inline-flex rounded-full px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-800">
-                        {formatStatus(order.status)}
-                      </span>
-                    </td>
-
-                    {/*Situação de estoque */}
-                    <td className="px-4 py-3 text-xs">
-                      {hasSufficientStock(order) ? (
-                        <span className="text-emerald-700 font-medium">
-                          Estoque suficiente
-                        </span>
-                      ) : (
-                        <span className="text-red-600 font-medium">
-                          Estoque insuficiente
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Rastreio */}
-                    <td className="px-4 py-3 text-xs text-slate-600">
-                      {order.trackingCode ? (
-                        <span className="font-mono">{order.trackingCode}</span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-
-                    {/* Data */}
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {new Date(order.createdAt).toLocaleString('pt-BR')}
-                    </td>
-
-                    {/* Ações */}
-                    <td className="px-4 py-3 space-x-2">
-                      {order.status === 'PENDING' && (
-                        <>
-                          <button
-                            disabled={updatingId === order.id}
-                            onClick={() => handleUpdateStatus(order.id, 'PRODUCING')}
-                            className="text-xs font-medium text-slate-900 hover:underline disabled:opacity-50"
-                          >
-                            Marcar em produção
-                          </button>
-                          <button
-                            disabled={updatingId === order.id}
-                            onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
-                            className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
-                        </>
-                      )}
-
-                      {order.status === 'PRODUCING' && (
-                        <>
-                          <button
-                            disabled={updatingId === order.id}
-                            onClick={() => handleShip(order)}
-                            className="text-xs font-medium text-slate-900 hover:underline disabled:opacity-50"
-                          >
-                            Registrar envio
-                          </button>
-                          <button
-                            disabled={updatingId === order.id}
-                            onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
-                            className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
-                        </>
-                      )}
-
-                      {order.status === 'SHIPPED' && (
-                        <button
-                          disabled={updatingId === order.id}
-                          onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
-                          className="text-xs font-medium text-emerald-700 hover:underline disabled:opacity-50"
-                        >
-                          Marcar como entregue
-                        </button>
-                      )}
-
-                      {(order.status === 'DELIVERED' ||
-                        order.status === 'CANCELLED') && (
-                        <span className="text-xs text-slate-400">
-                          Nenhuma ação disponível
-                        </span>
-                      )}
-                    </td>
+                    <th className="px-4 py-2">Rastreio</th>
+                    <th className="px-4 py-2">Data</th>
+                    <th className="px-4 py-2">Ações</th>
                   </tr>
-                ))}
-              </tbody>
+                </thead>
+                <tbody>
+                  {visibleOrders.map((order, index) => (
+                    <tr
+                      key={order.id}
+                      className={`border-b border-slate-100 ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-slate-50'
+                      }`}
+                    >
+                      {/* Aluno */}
+                      <td className="px-4 py-3.5 align-top text-sm font-medium text-slate-900">
+                        {order.studentName}
+                      </td>
 
-            </table>
+                      {/* Turma */}
+                      <td className="px-4 py-3.5 align-top text-sm text-slate-700">
+                        {order.studentClass}
+                      </td>
+
+                      {/* Itens */}
+                      <td className="px-4 py-3.5 align-top">
+                        <ul className="space-y-1">
+                          {order.items.map((oi) => (
+                            <li key={oi.id} className="text-xs text-slate-700">
+                              {oi.quantity}× {oi.item.name}
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3.5 align-top">
+                        <span className={getStatusChipClasses(order.status)}>
+                          {formatStatus(order.status)}
+                        </span>
+                      </td>
+
+                      {/* Estoque – só na aba Pendente */}
+                      {showStockColumn && (
+                        <td className="px-4 py-3.5 align-top text-xs">
+                          {hasSufficientStock(order) ? (
+                            <span className="text-emerald-700 font-medium">
+                              Estoque suficiente
+                            </span>
+                          ) : (
+                            <span className="text-rose-600 font-medium">
+                              Estoque insuficiente
+                            </span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Rastreio */}
+                      <td className="px-4 py-3.5 align-top text-xs text-slate-600">
+                        {order.trackingCode ? (
+                          <span className="font-mono">{order.trackingCode}</span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+
+                      {/* Data */}
+                      <td className="px-4 py-3.5 align-top text-xs text-slate-500">
+                        {new Date(order.createdAt).toLocaleString('pt-BR')}
+                      </td>
+
+                      {/* Ações */}
+                      <td className="px-4 py-3.5 align-top text-xs">
+                        <div className="flex flex-wrap gap-2">
+                          {order.status === 'PENDING' && (
+                            <>
+                              {hasSufficientStock(order) && (
+                                <button
+                                  disabled={updatingId === order.id}
+                                  onClick={() => handleMarkProducing(order)}
+                                  className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Em produção
+                                </button>
+                              )}
+                              <button
+                                disabled={updatingId === order.id}
+                                onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
+                                className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-medium text-rose-800 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          )}
+
+                          {order.status === 'PRODUCING' && (
+                            <>
+                              <button
+                                disabled={updatingId === order.id}
+                                onClick={() => handleShip(order)}
+                                className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Registrar envio
+                              </button>
+                            </>
+                          )}
+
+                          {order.status === 'SHIPPED' && (
+                            <button
+                              disabled={updatingId === order.id}
+                              onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
+                              className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Marcar como entregue
+                            </button>
+                          )}
+
+                          {(order.status === 'DELIVERED' || order.status === 'CANCELLED') && (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-400">
+                              Nenhuma ação disponível
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
         {/* Gestão de estoque */}
@@ -542,29 +705,49 @@ async function handleSaveStock(itemId: string, quantity: number) {
                 </tr>
               </thead>
               <tbody>
-                {itemsCatalog.map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100">
-                    <td className="px-4 py-2">{item.name}</td>
-                    <td className="px-4 py-2">{item.category}</td>
-                    <td className="px-4 py-2">{item.size ?? '—'}</td>
-                    <td className="px-4 py-2">
+                {itemsCatalog.map((item, index) => (
+                  <tr
+                    key={item.id}
+                    className={`border-b border-slate-100 ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-slate-50'
+                    }`}
+                  >
+                    <td className="px-4 py-3.5 align-top text-sm text-slate-900">
+                      {item.name}
+                    </td>
+                    <td className="px-4 py-3.5 align-top text-xs text-slate-600">
+                      {item.category}
+                    </td>
+                    <td className="px-4 py-3.5 align-top text-xs text-slate-600">
+                      {item.size ?? 'único'}
+                    </td>
+
+                    {/* Estoque atual (campo editável) */}
+                    <td className="px-4 py-3.5 align-top">
                       <input
                         type="number"
                         min={0}
-                        value={item.stockQuantity}
+                        className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900"
+                        value={editedStock[item.id] ?? String(item.stockQuantity)}
                         onChange={(e) =>
-                          handleLocalStockChange(item.id, e.target.value)
+                          setEditedStock((prev) => ({
+                            ...prev,
+                            [item.id]: e.target.value,
+                          }))
                         }
-                        className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
                       />
                     </td>
-                    <td className="px-4 py-2">
+
+                    {/* Botão salvar */}
+                    <td className="px-4 py-3.5 align-top">
                       <button
-                        disabled={updatingStockId === item.id}
                         onClick={() =>
-                          handleSaveStock(item.id, item.stockQuantity)
+                          handleSaveStock(
+                            item.id,
+                            Number(editedStock[item.id] ?? item.stockQuantity),
+                          )
                         }
-                        className="text-xs font-medium text-slate-900 hover:underline disabled:opacity-50"
+                        className="text-xs font-medium text-emerald-700 hover:underline"
                       >
                         Salvar
                       </button>

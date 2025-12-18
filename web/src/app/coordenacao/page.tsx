@@ -114,6 +114,71 @@ export default function CoordenacaoPage() {
   }
 }
 
+function getStatusChipClasses(status: OrderStatus) {
+  const base =
+    'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold border';
+
+  switch (status) {
+    case 'PENDING':
+      return `${base} bg-amber-50 text-amber-800 border-amber-200`;
+    case 'PRODUCING':
+      return `${base} bg-blue-50 text-blue-800 border-blue-200`;
+    case 'SHIPPED':
+      return `${base} bg-sky-50 text-sky-800 border-sky-200`;
+    case 'DELIVERED':
+      return `${base} bg-emerald-50 text-emerald-800 border-emerald-200`;
+    case 'CANCELLED':
+      return `${base} bg-rose-50 text-rose-800 border-rose-200`;
+    default:
+      return `${base} bg-slate-100 text-slate-800 border-slate-200`;
+  }
+}
+
+type StatusFilter = 'ALL' | OrderStatus;
+
+function getStatusFilterClasses(status: StatusFilter, isActive: boolean) {
+  const base =
+    'rounded-full px-3 py-1 text-xs font-medium border transition-colors';
+
+  if (status === 'ALL') {
+    return isActive
+      ? `${base} bg-slate-900 text-white border-slate-900`
+      : `${base} bg-white text-slate-800 border-slate-300 hover:bg-slate-100`;
+  }
+
+  if (status === 'PENDING') {
+    return isActive
+      ? `${base} bg-amber-500 text-white border-amber-500`
+      : `${base} bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100`;
+  }
+
+  if (status === 'PRODUCING') {
+    return isActive
+      ? `${base} bg-blue-500 text-white border-blue-500`
+      : `${base} bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100`;
+  }
+
+  if (status === 'SHIPPED') {
+    return isActive
+      ? `${base} bg-sky-500 text-white border-sky-500`
+      : `${base} bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100`;
+  }
+
+  if (status === 'DELIVERED') {
+    return isActive
+      ? `${base} bg-emerald-500 text-white border-emerald-500`
+      : `${base} bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100`;
+  }
+
+  if (status === 'CANCELLED') {
+    return isActive
+      ? `${base} bg-rose-500 text-white border-rose-500`
+      : `${base} bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100`;
+  }
+
+  return `${base} bg-slate-100 text-slate-800 border-slate-200`;
+}
+
 
   if (!user) {
     return (
@@ -133,8 +198,7 @@ export default function CoordenacaoPage() {
               Painel da Coordenação
             </h1>
             <p className="text-sm text-slate-600">
-              Usuário: {user.username} — visualize e acompanhe os pedidos de
-              itens acadêmicos.
+              Visualize, crie e acompanhe os pedidos de itens acadêmicos.
             </p>
           </div>
 
@@ -165,11 +229,10 @@ export default function CoordenacaoPage() {
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status === 'ALL' ? 'ALL' : status)}
-                  className={`rounded-full px-3 py-1 text-xs font-medium border ${
-                    statusFilter === status
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
-                  }`}
+                  className={getStatusFilterClasses(
+                    status,
+                    statusFilter === status,
+                  )}
                 >
                   {status === 'ALL'
                     ? 'Todos'
@@ -178,6 +241,7 @@ export default function CoordenacaoPage() {
               ),
             )}
           </div>
+
 
           <div className="w-full md:w-64">
             <input
@@ -191,7 +255,7 @@ export default function CoordenacaoPage() {
         </section>
 
         {/* Tabela de pedidos */}
-        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm">
           {loading ? (
             <div className="p-6 text-sm text-slate-600">
               Carregando pedidos...
@@ -201,24 +265,36 @@ export default function CoordenacaoPage() {
               Nenhum pedido encontrado para esse filtro.
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                    <th className="px-4 py-3">Aluno</th>
-                    <th className="px-4 py-3">Turma</th>
-                    <th className="px-4 py-3">Itens</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Rastreio</th>
-                    <th className="px-4 py-3">Data</th>
-                    <th className="px-4 py-3">Ações</th>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-2">Aluno</th>
+                    <th className="px-4 py-2">Turma</th>
+                    <th className="px-4 py-2">Itens</th>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Rastreio</th>
+                    <th className="px-4 py-2">Data</th>
+                    <th className="px-4 py-2">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((order) => (
-                    <tr key={order.id} className="border-b border-slate-100">
-                      <td className="px-4 py-3 font-medium">{order.studentName}</td>
-                      <td className="px-4 py-3">{order.studentClass}</td>
-                      <td className="px-4 py-3">
+                  {orders.map((order, index) => (
+                    <tr
+                      key={order.id}
+                      className={`border-b border-slate-100 ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-slate-50'
+                      }`}
+                    >
+                      <td className="px-4 py-3.5 align-top text-sm font-medium text-slate-900">
+                        {order.studentName}
+                      </td>
+
+                      <td className="px-4 py-3.5 align-top text-sm text-slate-700">
+                        {order.studentClass}
+                      </td>
+
+                      <td className="px-4 py-3.5 align-top">
                         <ul className="space-y-1">
                           {order.items.map((oi) => (
                             <li key={oi.id} className="text-xs text-slate-700">
@@ -227,12 +303,14 @@ export default function CoordenacaoPage() {
                           ))}
                         </ul>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex rounded-full px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-800">
+
+                      <td className="px-4 py-3.5 align-top">
+                        <span className={getStatusChipClasses(order.status)}>
                           {formatStatus(order.status)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-600">
+
+                      <td className="px-4 py-3.5 align-top text-xs text-slate-600">
                         {order.trackingCode ? (
                           <span className="font-mono">
                             {order.trackingCode}
@@ -241,25 +319,30 @@ export default function CoordenacaoPage() {
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
+
+                      <td className="px-4 py-3.5 align-top text-xs text-slate-500">
                         {new Date(order.createdAt).toLocaleString('pt-BR')}
                       </td>
-                      <td className="px-4 py-3">
+
+                      <td className="px-4 py-3.5 align-top text-xs">
                         {order.status === 'PENDING' ? (
                           <button
-                            onClick={() => router.push(`/coordenacao/pedidos/${order.id}`)}
-                            className="text-xs font-medium text-slate-900 hover:underline"
+                            onClick={() =>
+                              router.push(`/coordenacao/pedidos/${order.id}`)
+                            }
+                            className="font-medium text-slate-900 hover:underline"
                           >
                             Editar
                           </button>
                         ) : (
-                          <span className="text-xs text-slate-400">—</span>
+                          <span className="text-slate-400">—</span>
                         )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
-            </table>
+              </table>
+            </div>
           )}
         </section>
       </div>

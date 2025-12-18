@@ -1,0 +1,112 @@
+# ============================================
+# Requisitos para rodar o projeto
+# Sistema de Pedidos Acadêmicos
+# ============================================
+
+# ---------------------------
+# 1. Ferramentas globais
+# ---------------------------
+# Necessário instalar no sistema operacional:
+
+- Node.js >= 20 (recomendado LTS)
+- npm >= 10 (instala junto com o Node)
+- PostgreSQL >= 14
+- Cliente de banco (opcional, mas recomendado):
+  - DBeaver (para visualizar e editar o banco)
+
+# ---------------------------
+# 2. Banco de dados
+# ---------------------------
+# Criar um banco PostgreSQL com:
+
+- host: localhost
+- port: 5432
+- database: sis_pedidos
+- user: <seu_usuario>
+- password: <sua_senha>
+
+# Exemplo de DATABASE_URL usada no projeto:
+# (arquivo: api/.env)
+
+DATABASE_URL="postgresql://<user>:<password>@localhost:5432/sis_pedidos?schema=public"
+
+# ---------------------------
+# 3. Backend (pasta api/)
+# ---------------------------
+# Entrar na pasta:
+#   cd api
+#
+# Instalar dependências:
+#   npm install
+#
+# Dependências principais usadas:
+#   "express"
+#   "@prisma/client"
+#
+# Dependências de desenvolvimento:
+#   "prisma"
+#   "typescript"
+#   "ts-node-dev"
+#   "@types/express"
+#   "@types/node"
+#
+# Comandos importantes:
+#   npx prisma migrate dev        # aplica migrations no banco
+#   npx prisma generate           # gera o Prisma Client
+#   npm run dev                   # sobe a API em desenvolvimento (localhost:4000)
+#   npm run build                 # compila TypeScript
+#   npm start                     # roda versão compilada (dist)
+
+# ---------------------------
+# 4. Frontend (pasta web/)
+# ---------------------------
+# Entrar na pasta:
+#   cd web
+#
+# Instalar dependências:
+#   npm install
+#
+# Dependências principais usadas:
+#   "next"
+#   "react"
+#   "react-dom"
+#   "typescript"
+#   "tailwindcss"
+#   "postcss"
+#   "autoprefixer"
+#
+# Exportação de relatórios:
+#   "exceljs"
+#   "file-saver"
+#
+# Comandos importantes:
+#   npm run dev      # sobe o app em desenvolvimento (http://localhost:3000)
+#   npm run build    # build de produção
+#   npm start        # roda o build de produção
+
+# ---------------------------
+# 5. Fluxo para rodar o projeto do zero
+# ---------------------------
+# 1) Clonar o repositório
+#    git clone <url-do-repo>
+#
+# 2) Configurar banco PostgreSQL e .env:
+#    - Criar banco "sis_pedidos"
+#    - Criar arquivo api/.env com a DATABASE_URL correta
+#
+# 3) Backend:
+#    cd api
+#    npm install
+#    npx prisma migrate dev
+#    npm run dev
+#
+# 4) Frontend:
+#    cd ../web
+#    npm install
+#    npm run dev
+#
+# 5) Acessar:
+#    Frontend: http://localhost:3000
+#    Login:
+#      - Coordenação:  usuário: admin_coordenacao | senha: coord123
+#      - Estoque:      usuário: admin_estoque     | senha: estoque123

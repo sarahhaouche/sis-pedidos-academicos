@@ -78,40 +78,63 @@ router.post('/', async (req: Request, res: Response) => {
  * PATCH /items/:id
  * Atualiza campos pontuais do item (nome, estoque, ativo, etc.)
  */
+
 router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, category, size, stockQuantity, isActive } = req.body;
+    const { stockQuantity, reason, performedBy } = req.body;
 
-    const existing = await prisma.item.findUnique({
-      where: { id },
-    });
+    if (typeof stockQuantity !== 'number') {
+      return res.status(400).json({
+        error: 'stockQuantity deve ser um número',
+      });
+    }
 
-    if (!existing) {
+    const item = await prisma.item.findUnique({ where: { id } });
+
+    if (!item) {
       return res.status(404).json({ error: 'Item não encontrado' });
     }
 
-    const updated = await prisma.item.update({
-      where: { id },
-      data: {
-        name: name ?? existing.name,
-        category: category ?? existing.category,
-        size: size ?? existing.size,
-        stockQuantity:
-          typeof stockQuantity === 'number'
-            ? stockQuantity
-            : existing.stockQuantity,
-        isActive:
-          typeof isActive === 'boolean' ? isActive : existing.isActive,
-      },
+    const delta = stockQuantity - item.stockQuantity;
+
+    // Nada mudou? só retorna o item mesmo
+    if (delta === 0) {
+      return res.json(item);
+    }
+
+    const movementType =
+      delta > 0 ? 'IN' : 'OUT'; // entrada ou saída
+    const movementQuantity = Math.abs(delta);
+
+    const updatedItem = await prisma.$transaction(async (tx) => {
+      // 1) atualiza saldo
+      const updated = await tx.item.update({
+        where: { id },
+        data: { stockQuantity },
+      });
+
+      // 2) registra movimento no ledger
+      await tx.stockMovement.create({
+        data: {
+          itemId: id,
+          type: movementType as any,
+          quantity: movementQuantity,
+          reason: reason ?? 'Ajuste manual de estoque',
+          performedBy: performedBy ?? null, //nome do admin
+        },
+      });
+
+      return updated;
     });
 
-    return res.json(updated);
+    return res.json(updatedItem);
   } catch (error) {
-    console.error('Erro ao atualizar item:', error);
-    return res.status(500).json({ error: 'Erro ao atualizar item' });
+    console.error('Erro ao atualizar estoque:', error);
+    return res.status(500).json({ error: 'Erro ao atualizar estoque' });
   }
 });
+
 
 /**
  * GET /items/:id

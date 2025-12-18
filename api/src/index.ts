@@ -3,6 +3,7 @@ import { prisma } from './prisma';
 import itemsRoutes from './routes/itemsRoutes';
 import ordersRoutes from './routes/ordersRoutes';
 import authRoutes from './routes/authRoutes';
+import stockMovementsRoutes from './routes/stockMovementsRoutes';
 import cors from 'cors';
 
 const app = express();
@@ -50,6 +51,9 @@ app.use('/items', itemsRoutes);
 
 // Rotas de pedidos
 app.use('/orders', ordersRoutes);
+
+//Rotas de estoque
+app.use('/stock-movements', stockMovementsRoutes);
 
 app.listen(PORT, () => {
   console.log(`API rodando na porta ${PORT}`);

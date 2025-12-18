@@ -1,42 +1,44 @@
 // prisma/schema.prisma
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 // Itens do catálogo (uniformes, mochilas, materiais)
 model Item {
-  id            String   @id @default(uuid())
+  id            String  @id @default(uuid())
   name          String
-  category      String   // ex: "uniforme", "mochila", "material"
-  size          String?  // ex: "P", "M", "G", "único"
-  stockQuantity Int      @default(0)
-  isActive      Boolean  @default(true)
+  category      String // ex: "uniforme", "mochila", "material"
+  size          String? // ex: "P", "M", "G", "único"
+  stockQuantity Int     @default(0)
+  isActive      Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orderItems OrderItem[]
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
 }
 
 // Pedido de itens para um aluno
 model Order {
   id           String      @id @default(uuid())
   studentName  String
-  studentClass String      
+  studentClass String
   status       OrderStatus @default(PENDING)
-  requestedBy  String      // nome ou e-mail de quem solicitou
+  requestedBy  String // nome ou e-mail de quem solicitou
   trackingCode String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items OrderItem[]
+  items          OrderItem[]
+  stockMovements StockMovement[]
 }
 
 // Itens pertencentes a um pedido
@@ -50,6 +52,21 @@ model OrderItem {
   item  Item  @relation(fields: [itemId], references: [id])
 }
 
+// Movimentações de estoque (ledger)
+model StockMovement {
+  id        String            @id @default(uuid())
+  itemId    String
+  orderId   String?
+  type      StockMovementType
+  quantity  Int // sempre positivo
+  reason    String?
+  performedBy String?    
+  createdAt DateTime          @default(now())
+
+  item  Item   @relation(fields: [itemId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+}
+
 // Enum para status do pedido
 enum OrderStatus {
   PENDING
@@ -59,18 +76,23 @@ enum OrderStatus {
   CANCELLED
 }
 
+// Tipo de movimento de estoque
+enum StockMovementType {
+  IN // entrada
+  OUT // saída
+}
+
+model User {
+  id       String   @id @default(uuid())
+  username String   @unique
+  password String
+  role     UserRole
+
+  createdAt DateTime @default(now())
+}
+
+// Enum de papel do usuário (coordenação x estoque)
 enum UserRole {
   COORDENACAO_ADMIN
   ESTOQUE_ADMIN
 }
-
-model User {
-  id           String   @id @default(uuid())
-  username     String   @unique
-  passwordHash String
-  role         UserRole
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
