@@ -51,4 +51,7 @@ Sistema interno para gestão de **pedidos e entregas de itens acadêmicos**
 │   │   └── estoque/historico/ # Histórico de movimentações
 │   └── ...
 │
+├── requirements.txt
+│
 └── README.md
+
