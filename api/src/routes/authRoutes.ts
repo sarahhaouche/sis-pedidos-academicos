@@ -1,10 +1,11 @@
-import { Router, Request, Response } from 'express';
-import { prisma } from '../prisma'; 
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import { PrismaClient } from '@prisma/client';
 
 const router = Router();
+const prisma = new PrismaClient();
 
-// POST /auth/login
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -14,27 +15,37 @@ router.post('/login', async (req: Request, res: Response) => {
         .json({ error: 'Usuário e senha são obrigatórios.' });
     }
 
-    // busca pelo username no banco
     const user = await prisma.user.findUnique({
       where: { username },
     });
 
-    // se não achou ou senha não bate, erro
-    if (!user || user.password !== password) {
+    // Se usuário não existe
+    if (!user) {
+      return res
+        .status(401)
+        .json({ error: 'Usuário ou senha inválidos.' });
+    }
+    
+    // usar user.password (nome da coluna no banco)
+    const passwordOk = await bcrypt.compare(password, user.password);
+
+    if (!passwordOk) {
       return res
         .status(401)
         .json({ error: 'Usuário ou senha inválidos.' });
     }
 
-    // devolve só os dados necessários pro front
+    // Login ok
     return res.json({
       id: user.id,
       username: user.username,
-      role: user.role, // 'COORDENACAO_ADMIN' ou 'ESTOQUE_ADMIN'
+      role: user.role,
     });
   } catch (error) {
-    console.error('Erro no login:', error);
-    return res.status(500).json({ error: 'Erro ao processar login.' });
+    console.error('Erro ao processar login:', error);
+    return res
+      .status(500)
+      .json({ error: 'Erro ao processar login.' });
   }
 });
 
