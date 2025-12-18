@@ -17,48 +17,45 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-
     setError(null);
-
-    if (!username || !password) {
-      setError('Informe usuário e senha.');
-      return;
-    }
+    setSubmitting(true);
 
     try {
-      setSubmitting(true);
+      if (!API_URL) {
+        console.error('API_URL não definida');
+        throw new Error('API_URL não configurada');
+      }
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL;
-      const res = await fetch('${API_URL}/auth/login', {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
 
-      const data: LoginResponse | { error?: string } = await res.json();
+      console.log('LOGIN RES STATUS', res.status);
 
       if (!res.ok) {
-        setError(
-          (data as any)?.error ?? 'Não foi possível fazer login. Tente novamente.',
-        );
-        return;
+        const text = await res.text();
+        console.error('Resposta de erro do login:', res.status, text);
+        throw new Error('Falha ao fazer login');
       }
 
-      // salva usuário no localStorage para os outros painéis
+      const data: LoginResponse = await res.json();
+
+      // guarda usuário no localStorage para o resto do sistema
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem('sis_pedidos:user', JSON.stringify(data));
+        localStorage.setItem('sis_pedidos:user', JSON.stringify(data));
       }
 
-      const role = (data as LoginResponse).role;
-
-      if (role === 'COORDENACAO_ADMIN') {
-        router.replace('/coordenacao');
-      } else if (role === 'ESTOQUE_ADMIN') {
-        router.replace('/estoque');
+      // redireciona conforme o papel
+      if (data.role === 'COORDENACAO_ADMIN') {
+        router.push('/coordenacao');
       } else {
-        router.replace('/');
+        router.push('/estoque');
       }
     } catch (err) {
       console.error('Erro no login:', err);
@@ -151,7 +148,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Rodapézinho */}
         <p className="mt-4 text-center text-[11px] text-slate-400">
           Em caso de dúvida sobre usuário ou senha, procure o time responsável
           pelo sistema.
