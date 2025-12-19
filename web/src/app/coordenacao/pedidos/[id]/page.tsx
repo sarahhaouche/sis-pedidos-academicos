@@ -84,13 +84,25 @@ export default function EditarPedidoPage() {
     setUser(parsed);
   }, [router]);
 
+  
   // 2) Carregar catálogo de itens
   useEffect(() => {
     async function fetchItems() {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL;
+        if (!API_URL) {
+          console.error('NEXT_PUBLIC_API_URL não definido');
+          return;
+        }
+
         setLoadingItems(true);
-        const res = await fetch('${API_URL}/items?onlyActive=true');
+
+        const res = await fetch(`${API_URL}/items?onlyActive=true`);
+        if (!res.ok) {
+          console.error('Falha ao buscar itens. Status:', res.status);
+          return;
+        }
+
         const data = await res.json();
         setItemsCatalog(data);
       } catch (error) {
@@ -102,6 +114,7 @@ export default function EditarPedidoPage() {
 
     fetchItems();
   }, []);
+
 
   // 3) Carregar pedido
   useEffect(() => {

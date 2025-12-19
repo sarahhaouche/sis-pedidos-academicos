@@ -74,7 +74,7 @@ export default function NovoPedidoPage() {
     async function fetchItems() {
       try {
         setLoadingItems(true);
-        const res = await fetch('${API_URL}/items?onlyActive=true');
+        const res = await fetch(`${API_URL}/items?onlyActive=true`)
         const data = await res.json();
         setItemsCatalog(data);
       } catch (error) {
