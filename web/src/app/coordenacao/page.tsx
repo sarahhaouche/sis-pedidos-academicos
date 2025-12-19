@@ -76,10 +76,12 @@ export default function CoordenacaoPage() {
           params.append('search', search.trim());
         }
 
+        const API_URL = process.env.NEXT_PUBLIC_API_URL;
+        
         const query = params.toString();
         const url = query
-          ? `http://localhost:4000/orders?${query}`
-          : 'http://localhost:4000/orders';
+          ? `${API_URL}/orders?${query}`
+          : '${API_URL}/orders';
 
         const res = await fetch(url);
         const data = await res.json();

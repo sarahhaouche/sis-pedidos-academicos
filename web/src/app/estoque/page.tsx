@@ -23,7 +23,6 @@ type OrderItem = {
   };
 };
 
-
 type Order = {
   id: string;
   studentName: string;
@@ -43,11 +42,10 @@ type StockItem = {
   stockQuantity: number;
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 function hasSufficientStock(order: Order): boolean {
-  return order.items.every(
-    (oi) => oi.item.stockQuantity >= oi.quantity,
-  );
+  return order.items.every((oi) => oi.item.stockQuantity >= oi.quantity);
 }
 
 export default function EstoquePage() {
@@ -88,6 +86,11 @@ export default function EstoquePage() {
       try {
         setLoading(true);
 
+        if (!API_URL) {
+          console.error('API_URL não definida');
+          return;
+        }
+
         const params = new URLSearchParams();
 
         if (statusFilter !== 'ALL') {
@@ -99,10 +102,14 @@ export default function EstoquePage() {
 
         const query = params.toString();
         const url = query
-          ? `http://localhost:4000/orders?${query}`
-          : 'http://localhost:4000/orders';
+          ? `${API_URL}/orders?${query}`
+          : `${API_URL}/orders`;
 
         const res = await fetch(url);
+        if (!res.ok) {
+          console.error('Erro ao buscar pedidos:', res.status);
+          return;
+        }
         const data = await res.json();
         setOrders(data);
       } catch (error) {
@@ -117,11 +124,22 @@ export default function EstoquePage() {
     }
   }, [statusFilter, search, user]);
 
+  // 3) Buscar itens para gestão de estoque
   useEffect(() => {
     async function fetchItems() {
       try {
         setLoadingItems(true);
-        const res = await fetch('http://localhost:4000/items?onlyActive=true');
+
+        if (!API_URL) {
+          console.error('API_URL não definida');
+          return;
+        }
+
+        const res = await fetch(`${API_URL}/items?onlyActive=true`);
+        if (!res.ok) {
+          console.error('Falha ao carregar itens para estoque:', res.status);
+          return;
+        }
         const data = await res.json();
         setItemsCatalog(data);
       } catch (error) {
@@ -136,120 +154,117 @@ export default function EstoquePage() {
     }
   }, [user]);
 
-
   function formatStatus(status: OrderStatus) {
-  switch (status) {
-    case 'PENDING':
-      return 'Pendente';
-    case 'PRODUCING':
-      return 'Em produção';
-    case 'SHIPPED':
-      return 'Enviado';
-    case 'DELIVERED':
-      return 'Entregue';
-    case 'CANCELLED':
-      return 'Cancelado';
-    default:
-      return status;
-  }
-}
-
-function getStatusChipClasses(status: OrderStatus) {
-  const base =
-    'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold border';
-
-  switch (status) {
-    case 'PENDING':
-      return `${base} bg-amber-50 text-amber-800 border-amber-200`;
-    case 'PRODUCING':
-      return `${base} bg-blue-50 text-blue-800 border-blue-200`;
-    case 'SHIPPED':
-      return `${base} bg-sky-50 text-sky-800 border-sky-200`;
-    case 'DELIVERED':
-      return `${base} bg-emerald-50 text-emerald-800 border-emerald-200`;
-    case 'CANCELLED':
-      return `${base} bg-rose-50 text-rose-800 border-rose-200`;
-    default:
-      return `${base} bg-slate-100 text-slate-800 border-slate-200`;
-  }
-}
-
-type StatusFilter = 'ALL' | OrderStatus;
-
-function getStatusFilterClasses(status: StatusFilter, isActive: boolean) {
-  const base =
-    'rounded-full px-3 py-1 text-xs font-medium border transition-colors';
-
-  if (status === 'ALL') {
-    return isActive
-      ? `${base} bg-slate-900 text-white border-slate-900`
-      : `${base} bg-white text-slate-800 border-slate-300 hover:bg-slate-100`;
+    switch (status) {
+      case 'PENDING':
+        return 'Pendente';
+      case 'PRODUCING':
+        return 'Em produção';
+      case 'SHIPPED':
+        return 'Enviado';
+      case 'DELIVERED':
+        return 'Entregue';
+      case 'CANCELLED':
+        return 'Cancelado';
+      default:
+        return status;
+    }
   }
 
-  if (status === 'PENDING') {
-    return isActive
-      ? `${base} bg-amber-500 text-white border-amber-500`
-      : `${base} bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100`;
+  function getStatusChipClasses(status: OrderStatus) {
+    const base =
+      'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold border';
+
+    switch (status) {
+      case 'PENDING':
+        return `${base} bg-amber-50 text-amber-800 border-amber-200`;
+      case 'PRODUCING':
+        return `${base} bg-blue-50 text-blue-800 border-blue-200`;
+      case 'SHIPPED':
+        return `${base} bg-sky-50 text-sky-800 border-sky-200`;
+      case 'DELIVERED':
+        return `${base} bg-emerald-50 text-emerald-800 border-emerald-200`;
+      case 'CANCELLED':
+        return `${base} bg-rose-50 text-rose-800 border-rose-200`;
+      default:
+        return `${base} bg-slate-100 text-slate-800 border-slate-200`;
+    }
   }
 
-  if (status === 'PRODUCING') {
-    return isActive
-      ? `${base} bg-blue-500 text-white border-blue-500`
-      : `${base} bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100`;
+  type StatusFilter = 'ALL' | OrderStatus;
+
+  function getStatusFilterClasses(status: StatusFilter, isActive: boolean) {
+    const base =
+      'rounded-full px-3 py-1 text-xs font-medium border transition-colors';
+
+    if (status === 'ALL') {
+      return isActive
+        ? `${base} bg-slate-900 text-white border-slate-900`
+        : `${base} bg-white text-slate-800 border-slate-300 hover:bg-slate-100`;
+    }
+
+    if (status === 'PENDING') {
+      return isActive
+        ? `${base} bg-amber-500 text-white border-amber-500`
+        : `${base} bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100`;
+    }
+
+    if (status === 'PRODUCING') {
+      return isActive
+        ? `${base} bg-blue-500 text-white border-blue-500`
+        : `${base} bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100`;
+    }
+
+    if (status === 'SHIPPED') {
+      return isActive
+        ? `${base} bg-sky-500 text-white border-sky-500`
+        : `${base} bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100`;
+    }
+
+    if (status === 'DELIVERED') {
+      return isActive
+        ? `${base} bg-emerald-500 text-white border-emerald-500`
+        : `${base} bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100`;
+    }
+
+    if (status === 'CANCELLED') {
+      return isActive
+        ? `${base} bg-rose-500 text-white border-rose-500`
+        : `${base} bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100`;
+    }
+
+    return `${base} bg-slate-100 text-slate-800 border-slate-200`;
   }
-
-  if (status === 'SHIPPED') {
-    return isActive
-      ? `${base} bg-sky-500 text-white border-sky-500`
-      : `${base} bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100`;
-  }
-
-  if (status === 'DELIVERED') {
-    return isActive
-      ? `${base} bg-emerald-500 text-white border-emerald-500`
-      : `${base} bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100`;
-  }
-
-  if (status === 'CANCELLED') {
-    return isActive
-      ? `${base} bg-rose-500 text-white border-rose-500`
-      : `${base} bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100`;
-  }
-
-  return `${base} bg-slate-100 text-slate-800 border-slate-200`;
-}
-
 
   async function handleUpdateStatus(orderId: string, nextStatus: OrderStatus) {
     try {
       setUpdatingId(orderId);
 
-      const res = await fetch(
-        `http://localhost:4000/orders/${orderId}/status`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: nextStatus }),
-        },
-      );
+      if (!API_URL) {
+        console.error('API_URL não definida');
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
 
       const updatedOrder: Order = await res.json();
 
       if (!res.ok) {
         console.error('Erro ao atualizar status:', updatedOrder);
         alert(
-          (updatedOrder as any)?.error ??
-            'Erro ao atualizar status do pedido',
+          (updatedOrder as any)?.error ?? 'Erro ao atualizar status do pedido',
         );
         return;
       }
 
-      // Atualiza a lista de pedidos com o pedido vindo da API
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? updatedOrder : o)),
       );
 
-      // Se foi PENDING -> PRODUCING, atualiza também o estoque local
       if (nextStatus === 'PRODUCING') {
         setItemsCatalog((prev) =>
           prev.map((item) => {
@@ -271,177 +286,175 @@ function getStatusFilterClasses(status: StatusFilter, isActive: boolean) {
   }
 
   async function handleMarkProducing(order: Order) {
-  // Popup pedindo nome do responsável
-  const name = window.prompt(
-    'Informe o nome do administrador de estoque que está enviando este pedido para produção:',
-  );
+    const name = window.prompt(
+      'Informe o nome do administrador de estoque que está enviando este pedido para produção:',
+    );
 
-  if (!name || !name.trim()) {
-    // usuário cancelou ou deixou vazio → não faz nada
-    return;
-  }
+    if (!name || !name.trim()) {
+      return;
+    }
 
-  try {
-    setUpdatingId(order.id);
+    try {
+      setUpdatingId(order.id);
 
-    const res = await fetch(
-      `http://localhost:4000/orders/${order.id}/status`,
-      {
+      if (!API_URL) {
+        console.error('API_URL não definida');
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/orders/${order.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'PRODUCING',
-          performedBy: name.trim(), // vai pro backend
+          performedBy: name.trim(),
         }),
-      },
-    );
+      });
 
-    const updatedOrder: Order = await res.json();
+      const updatedOrder: Order = await res.json();
 
-    if (!res.ok) {
-      console.error('Erro ao atualizar status:', updatedOrder);
-      alert(
-        (updatedOrder as any)?.error ??
-          'Erro ao enviar pedido para produção.',
-      );
-      return;
-    }
-
-    // Atualiza pedidos
-    setOrders((prev) =>
-      prev.map((o) => (o.id === order.id ? updatedOrder : o)),
-    );
-
-    // Atualiza estoque local com base nos itens retornados
-    setItemsCatalog((prev) =>
-      prev.map((item) => {
-        const fromOrder = updatedOrder.items.find(
-          (oi) => oi.item.id === item.id,
+      if (!res.ok) {
+        console.error('Erro ao atualizar status:', updatedOrder);
+        alert(
+          (updatedOrder as any)?.error ??
+            'Erro ao enviar pedido para produção.',
         );
-        return fromOrder
-          ? { ...item, stockQuantity: fromOrder.item.stockQuantity }
-          : item;
-      }),
-    );
-  } catch (error) {
-    console.error('Erro ao enviar para produção:', error);
-    alert('Erro de conexão ao enviar pedido para produção.');
-  } finally {
-    setUpdatingId(null);
+        return;
+      }
+
+      setOrders((prev) =>
+        prev.map((o) => (o.id === order.id ? updatedOrder : o)),
+      );
+
+      setItemsCatalog((prev) =>
+        prev.map((item) => {
+          const fromOrder = updatedOrder.items.find(
+            (oi) => oi.item.id === item.id,
+          );
+          return fromOrder
+            ? { ...item, stockQuantity: fromOrder.item.stockQuantity }
+            : item;
+        }),
+      );
+    } catch (error) {
+      console.error('Erro ao enviar para produção:', error);
+      alert('Erro de conexão ao enviar pedido para produção.');
+    } finally {
+      setUpdatingId(null);
+    }
   }
-}
-
-
-  // Estoque
 
   function handleLocalStockChange(itemId: string, value: string) {
-  const quantity = Number(value) || 0;
+    const quantity = Number(value) || 0;
 
-  setItemsCatalog((prev) =>
-    prev.map((item) =>
-      item.id === itemId ? { ...item, stockQuantity: quantity } : item,
-    ),
-  );
-}
-
-async function handleSaveStock(itemId: string, newQuantity: number) {
-  if (Number.isNaN(newQuantity) || newQuantity < 0) {
-    alert('Informe uma quantidade válida (zero ou maior).');
-    return;
+    setItemsCatalog((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, stockQuantity: quantity } : item,
+      ),
+    );
   }
 
-  const name = window.prompt(
-    'Informe o nome do administrador de estoque que está realizando este ajuste:',
-  );
-
-  if (!name || !name.trim()) {
-    return; // cancelou ou deixou vazio
-  }
-
-  try {
-    const res = await fetch(`http://localhost:4000/items/${itemId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        stockQuantity: newQuantity,
-        reason: 'Ajuste manual pelo painel de estoque',
-        performedBy: name.trim(),
-      }),
-    });
-
-    const updatedItem = await res.json();
-
-    if (!res.ok) {
-      console.error('Erro ao ajustar estoque:', updatedItem);
-      alert(
-        (updatedItem as any)?.error ??
-          'Erro ao salvar ajuste de estoque.',
-      );
+  async function handleSaveStock(itemId: string, newQuantity: number) {
+    if (Number.isNaN(newQuantity) || newQuantity < 0) {
+      alert('Informe uma quantidade válida (zero ou maior).');
       return;
     }
 
-    setItemsCatalog((prev) =>
-      prev.map((item) => (item.id === itemId ? updatedItem : item)),
+    const name = window.prompt(
+      'Informe o nome do administrador de estoque que está realizando este ajuste:',
     );
 
-    // limpa o valor editado desse item
-    setEditedStock((prev) => {
-      const copy = { ...prev };
-      delete copy[itemId];
-      return copy;
-    });
-  } catch (error) {
-    console.error('Erro ao ajustar estoque:', error);
-    alert('Erro de conexão ao salvar ajuste de estoque.');
-  }
-}
+    if (!name || !name.trim()) {
+      return;
+    }
 
-  // Rastreio do pedido
+    try {
+      if (!API_URL) {
+        console.error('API_URL não definida');
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stockQuantity: newQuantity,
+          reason: 'Ajuste manual pelo painel de estoque',
+          performedBy: name.trim(),
+        }),
+      });
+
+      const updatedItem = await res.json();
+
+      if (!res.ok) {
+        console.error('Erro ao ajustar estoque:', updatedItem);
+        alert(
+          (updatedItem as any)?.error ?? 'Erro ao salvar ajuste de estoque.',
+        );
+        return;
+      }
+
+      setItemsCatalog((prev) =>
+        prev.map((item) => (item.id === itemId ? updatedItem : item)),
+      );
+
+      setEditedStock((prev) => {
+        const copy = { ...prev };
+        delete copy[itemId];
+        return copy;
+      });
+    } catch (error) {
+      console.error('Erro ao ajustar estoque:', error);
+      alert('Erro de conexão ao salvar ajuste de estoque.');
+    }
+  }
 
   async function handleShip(order: Order) {
-  const code = window.prompt('Informe o código de rastreio deste pedido:');
+    const code = window.prompt('Informe o código de rastreio deste pedido:');
 
-  if (!code || !code.trim()) {
-    return; // usuário cancelou ou deixou vazio
-  }
+    if (!code || !code.trim()) {
+      return;
+    }
 
-  try {
-    setUpdatingId(order.id);
+    try {
+      setUpdatingId(order.id);
 
-    const res = await fetch(
-      `http://localhost:4000/orders/${order.id}/status`,
-      {
+      if (!API_URL) {
+        console.error('API_URL não definida');
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/orders/${order.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'SHIPPED',
           trackingCode: code.trim(),
         }),
-      },
-    );
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      console.error('Erro ao registrar envio:', data);
-      alert(data?.error ?? 'Erro ao registrar envio do pedido');
-      return;
+      if (!res.ok) {
+        console.error('Erro ao registrar envio:', data);
+        alert(data?.error ?? 'Erro ao registrar envio do pedido');
+        return;
+      }
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id
+            ? { ...o, status: data.status, trackingCode: data.trackingCode }
+            : o,
+        ),
+      );
+    } catch (error) {
+      console.error('Erro ao registrar envio:', error);
+      alert('Erro de conexão ao registrar envio.');
+    } finally {
+      setUpdatingId(null);
     }
-
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === order.id
-          ? { ...o, status: data.status, trackingCode: data.trackingCode }
-          : o,
-      ),
-    );
-  } catch (error) {
-    console.error('Erro ao registrar envio:', error);
-    alert('Erro de conexão ao registrar envio.');
-  } finally {
-    setUpdatingId(null);
   }
-}
 
   const visibleOrders = orders.filter((order) => {
     if (statusFilter === 'ALL') return true;
@@ -449,8 +462,6 @@ async function handleSaveStock(itemId: string, newQuantity: number) {
   });
 
   const showStockColumn = statusFilter === 'PENDING';
-
-
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
@@ -603,7 +614,9 @@ async function handleSaveStock(itemId: string, newQuantity: number) {
                       {/* Rastreio */}
                       <td className="px-4 py-3.5 align-top text-xs text-slate-600">
                         {order.trackingCode ? (
-                          <span className="font-mono">{order.trackingCode}</span>
+                          <span className="font-mono">
+                            {order.trackingCode}
+                          </span>
                         ) : (
                           <span className="text-slate-400">—</span>
                         )}
@@ -630,7 +643,9 @@ async function handleSaveStock(itemId: string, newQuantity: number) {
                               )}
                               <button
                                 disabled={updatingId === order.id}
-                                onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
+                                onClick={() =>
+                                  handleUpdateStatus(order.id, 'CANCELLED')
+                                }
                                 className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-medium text-rose-800 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Cancelar
@@ -639,28 +654,29 @@ async function handleSaveStock(itemId: string, newQuantity: number) {
                           )}
 
                           {order.status === 'PRODUCING' && (
-                            <>
-                              <button
-                                disabled={updatingId === order.id}
-                                onClick={() => handleShip(order)}
-                                className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                Registrar envio
-                              </button>
-                            </>
+                            <button
+                              disabled={updatingId === order.id}
+                              onClick={() => handleShip(order)}
+                              className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Registrar envio
+                            </button>
                           )}
 
                           {order.status === 'SHIPPED' && (
                             <button
                               disabled={updatingId === order.id}
-                              onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
+                              onClick={() =>
+                                handleUpdateStatus(order.id, 'DELIVERED')
+                              }
                               className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               Marcar como entregue
                             </button>
                           )}
 
-                          {(order.status === 'DELIVERED' || order.status === 'CANCELLED') && (
+                          {(order.status === 'DELIVERED' ||
+                            order.status === 'CANCELLED') && (
                             <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-400">
                               Nenhuma ação disponível
                             </span>
@@ -674,6 +690,7 @@ async function handleSaveStock(itemId: string, newQuantity: number) {
             </div>
           )}
         </section>
+
         {/* Gestão de estoque */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
@@ -758,7 +775,6 @@ async function handleSaveStock(itemId: string, newQuantity: number) {
             </table>
           )}
         </section>
-
       </div>
     </main>
   );

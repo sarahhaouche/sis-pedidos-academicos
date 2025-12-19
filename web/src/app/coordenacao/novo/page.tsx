@@ -70,10 +70,11 @@ export default function NovoPedidoPage() {
 
   // Carrega catálogo de itens
   useEffect(() => {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL;
     async function fetchItems() {
       try {
         setLoadingItems(true);
-        const res = await fetch('http://localhost:4000/items?onlyActive=true');
+        const res = await fetch('${API_URL}/items?onlyActive=true');
         const data = await res.json();
         setItemsCatalog(data);
       } catch (error) {
@@ -129,7 +130,9 @@ export default function NovoPedidoPage() {
     try {
       setSubmitting(true);
 
-      const res = await fetch('http://localhost:4000/orders', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+      const res = await fetch('${API_URL}/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

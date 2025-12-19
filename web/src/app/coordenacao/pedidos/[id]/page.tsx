@@ -88,8 +88,9 @@ export default function EditarPedidoPage() {
   useEffect(() => {
     async function fetchItems() {
       try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL;
         setLoadingItems(true);
-        const res = await fetch('http://localhost:4000/items?onlyActive=true');
+        const res = await fetch('${API_URL}/items?onlyActive=true');
         const data = await res.json();
         setItemsCatalog(data);
       } catch (error) {
@@ -106,7 +107,8 @@ export default function EditarPedidoPage() {
   useEffect(() => {
     async function fetchOrder() {
       try {
-        const res = await fetch(`http://localhost:4000/orders/${orderId}`);
+        const API_URL = process.env.NEXT_PUBLIC_API_URL;
+        const res = await fetch(`${API_URL}/orders/${orderId}`);
         if (!res.ok) {
           router.replace('/coordenacao');
           return;
@@ -182,7 +184,9 @@ export default function EditarPedidoPage() {
     try {
       setSubmitting(true);
 
-      const res = await fetch(`http://localhost:4000/orders/${orderId}`, {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+      const res = await fetch(`${API_URL}/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

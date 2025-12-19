@@ -122,7 +122,8 @@ export default function EstoqueHistoricoPage() {
     async function fetchOrders() {
       try {
         setLoadingOrders(true);
-        const res = await fetch('http://localhost:4000/orders');
+        const API_URL = process.env.NEXT_PUBLIC_API_URL;
+        const res = await fetch('${API_URL}/orders');
         const data = await res.json();
         setOrders(data);
       } catch (error) {
@@ -142,7 +143,8 @@ export default function EstoqueHistoricoPage() {
     async function fetchMovements() {
       try {
         setLoadingMovements(true);
-        const res = await fetch('http://localhost:4000/stock-movements?limit=500');
+        const API_URL = process.env.NEXT_PUBLIC_API_URL;
+        const res = await fetch('${API_URL}/stock-movements?limit=500');
         const data = await res.json();
         setMovements(data);
       } catch (error) {

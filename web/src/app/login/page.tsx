@@ -39,19 +39,24 @@ export default function LoginPage() {
       console.log('LOGIN RES STATUS', res.status);
 
       if (!res.ok) {
+        // tenta ler o corpo como texto só pra log
         const text = await res.text();
         console.error('Resposta de erro do login:', res.status, text);
+
+        if (res.status === 401) {
+          setError('Usuário ou senha inválidos.');
+          return;
+        }
+
         throw new Error('Falha ao fazer login');
       }
 
       const data: LoginResponse = await res.json();
 
-      // guarda usuário no localStorage para o resto do sistema
       if (typeof window !== 'undefined') {
         localStorage.setItem('sis_pedidos:user', JSON.stringify(data));
       }
 
-      // redireciona conforme o papel
       if (data.role === 'COORDENACAO_ADMIN') {
         router.push('/coordenacao');
       } else {
@@ -59,11 +64,14 @@ export default function LoginPage() {
       }
     } catch (err) {
       console.error('Erro no login:', err);
-      setError('Erro de conexão. Verifique se a API está rodando.');
+      if (!error) {
+        setError('Erro de conexão. Verifique se a API está rodando.');
+      }
     } finally {
       setSubmitting(false);
     }
   }
+
 
   function fillCoord() {
     setUsername('admin_coordenacao');
