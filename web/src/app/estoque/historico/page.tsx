@@ -97,6 +97,7 @@ export default function EstoqueHistoricoPage() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingMovements, setLoadingMovements] = useState(true);
+  const params = new URLSearchParams();
 
   // Autenticação / role
   useEffect(() => {
@@ -144,7 +145,7 @@ export default function EstoqueHistoricoPage() {
       try {
         setLoadingMovements(true);
         const API_URL = process.env.NEXT_PUBLIC_API_URL;
-        const res = await fetch('${API_URL}/stock-movements?limit=500');
+        const res = await fetch(`${API_URL}/stock-movements?limit=500`);
         const data = await res.json();
         setMovements(data);
       } catch (error) {

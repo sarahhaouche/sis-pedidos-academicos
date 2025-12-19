@@ -62,6 +62,8 @@ export default function EstoquePage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [editedStock, setEditedStock] = useState<Record<string, string>>({});
 
+  const params = new URLSearchParams();
+
   // 1) Garantir que só ESTOQUE_ADMIN entra
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -90,8 +92,6 @@ export default function EstoquePage() {
           console.error('API_URL não definida');
           return;
         }
-
-        const params = new URLSearchParams();
 
         if (statusFilter !== 'ALL') {
           params.append('status', statusFilter);

@@ -13,6 +13,8 @@ const CLASS_OPTIONS = [
   '3º Ano - Ensino Médio',
 ];
 
+// ⚠️ URL da API (Render) vinda do .env
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 type User = {
   id: string;
@@ -52,6 +54,7 @@ export default function NovoPedidoPage() {
   // Garante que só coordenação entra
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
     const stored = localStorage.getItem('sis_pedidos:user');
     if (!stored) {
       router.replace('/login');
@@ -70,11 +73,15 @@ export default function NovoPedidoPage() {
 
   // Carrega catálogo de itens
   useEffect(() => {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL;
     async function fetchItems() {
       try {
+        if (!API_URL) {
+          console.error('NEXT_PUBLIC_API_URL não configurada');
+          return;
+        }
+
         setLoadingItems(true);
-        const res = await fetch(`${API_URL}/items?onlyActive=true`)
+        const res = await fetch(`${API_URL}/items?onlyActive=true`);
         const data = await res.json();
         setItemsCatalog(data);
       } catch (error) {
@@ -95,7 +102,11 @@ export default function NovoPedidoPage() {
     setOrderItems((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function handleChangeItem(index: number, field: 'itemId' | 'quantity', value: string) {
+  function handleChangeItem(
+    index: number,
+    field: 'itemId' | 'quantity',
+    value: string,
+  ) {
     setOrderItems((prev) =>
       prev.map((row, i) =>
         i === index
@@ -112,6 +123,11 @@ export default function NovoPedidoPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!API_URL) {
+      setError('API não configurada. Fale com o responsável pelo sistema.');
+      return;
+    }
 
     if (!studentName || !studentClass || !requestedBy) {
       setError('Preencha nome do aluno, turma e solicitante.');
@@ -130,9 +146,7 @@ export default function NovoPedidoPage() {
     try {
       setSubmitting(true);
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-      const res = await fetch('${API_URL}/orders', {
+      const res = await fetch(`${API_URL}/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -143,16 +157,29 @@ export default function NovoPedidoPage() {
         }),
       });
 
+      console.log('CREATE ORDER STATUS', res.status);
+
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? 'Erro ao criar pedido');
+        // tenta ler o corpo como texto p/ debug
+        const text = await res.text();
+        console.error('Erro ao criar pedido (body):', text);
+        let message = 'Erro ao criar pedido';
+
+        try {
+          const data = JSON.parse(text);
+          if (data?.error) message = data.error;
+        } catch {
+          // ignore JSON parse error
+        }
+
+        setError(message);
         return;
       }
 
       // deu certo: volta para o painel
       router.push('/coordenacao');
     } catch (err) {
-      console.error(err);
+      console.error('Erro de conexão ao criar pedido:', err);
       setError('Erro de conexão com o servidor.');
     } finally {
       setSubmitting(false);
@@ -189,7 +216,10 @@ export default function NovoPedidoPage() {
           </button>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm"
+        >
           {/* Dados do aluno */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1">
@@ -220,7 +250,6 @@ export default function NovoPedidoPage() {
                 ))}
               </select>
             </div>
-
 
             <div className="space-y-1 md:col-span-2">
               <label className="block text-sm font-medium text-slate-700">
@@ -259,10 +288,7 @@ export default function NovoPedidoPage() {
             ) : (
               <div className="space-y-2">
                 {orderItems.map((row, index) => (
-                  <div
-                    key={index}
-                    className="flex gap-2 items-center"
-                  >
+                  <div key={index} className="flex gap-2 items-center">
                     <select
                       value={row.itemId}
                       onChange={(e) =>

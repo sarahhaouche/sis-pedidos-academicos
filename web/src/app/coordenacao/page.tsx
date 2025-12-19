@@ -43,6 +43,8 @@ export default function CoordenacaoPage() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
 
+  const params = new URLSearchParams();
+
   // 1) Garante que só coordenação entra
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -67,8 +69,6 @@ export default function CoordenacaoPage() {
       try {
         setLoading(true);
 
-        const params = new URLSearchParams();
-
         if (statusFilter !== 'ALL') {
           params.append('status', statusFilter);
         }
@@ -81,7 +81,7 @@ export default function CoordenacaoPage() {
         const query = params.toString();
         const url = query
           ? `${API_URL}/orders?${query}`
-          : '${API_URL}/orders';
+          : `${API_URL}/orders`;
 
         const res = await fetch(url);
         const data = await res.json();
